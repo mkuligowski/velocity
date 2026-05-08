@@ -1,0 +1,199 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-create-load-attempt-idempotency
+      author: mkuligowski
+      changes:
+        - createTable:
+            tableName: load_attempt_idempotency
+            columns:
+              - column:
+                  name: customer_id
+                  type: VARCHAR(64)
+                  constraints: { nullable: false }
+              - column:
+                  name: load_id
+                  type: VARCHAR(64)
+                  constraints: { nullable: false }
+              - column:
+                  name: locked_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints: { nullable: false }
+        - addPrimaryKey:
+            tableName: load_attempt_idempotency
+            columnNames: customer_id, load_id
+            constraintName: pk_load_attempt_idempotency
+
+  - changeSet:
+      id: 002-create-load-attempt-snapshot
+      author: mkuligowski
+      changes:
+        - createTable:
+            tableName: load_attempt_snapshot
+            columns:
+              - column:
+                  name: customer_id
+                  type: VARCHAR(64)
+                  constraints: { nullable: false }
+              - column:
+                  name: load_id
+                  type: VARCHAR(64)
+                  constraints: { nullable: false }
+              - column:
+                  name: amount
+                  type: NUMERIC(19,4)
+                  constraints: { nullable: false }
+              - column:
+                  name: load_time
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints: { nullable: false }
+              - column:
+                  name: accepted
+                  type: BOOLEAN
+                  constraints: { nullable: false }
+        - addPrimaryKey:
+            tableName: load_attempt_snapshot
+            columnNames: customer_id, load_id
+            constraintName: pk_load_attempt_snapshot
+        - createIndex:
+            tableName: load_attempt_snapshot
+            indexName: ix_snapshot_customer_time
+            columns:
+              - column: { name: customer_id }
+              - column: { name: load_time }
+
+  - changeSet:
+      id: 003-create-load-attempt-event
+      author: mkuligowski
+      changes:
+        - createTable:
+            tableName: load_attempt_event
+            columns:
+              - column:
+                  name: event_id
+                  type: UUID
+                  constraints: { nullable: false, primaryKey: true, primaryKeyName: pk_load_attempt_event }
+              - column:
+                  name: customer_id
+                  type: VARCHAR(64)
+                  constraints: { nullable: false }
+              - column:
+                  name: load_id
+                  type: VARCHAR(64)
+                  constraints: { nullable: false }
+              - column:
+                  name: event_type
+                  type: VARCHAR(32)
+                  constraints: { nullable: false }
+              - column:
+                  name: event_payload
+                  type: CLOB
+                  constraints: { nullable: false }
+              - column:
+                  name: occurred_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints: { nullable: false }
+              - column:
+                  name: recorded_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints: { nullable: false }
+        - createIndex:
+            tableName: load_attempt_event
+            indexName: ix_event_customer_time
+            columns:
+              - column: { name: customer_id }
+              - column: { name: occurred_at }
+        - sql:
+            sql: >
+              ALTER TABLE load_attempt_event
+                ADD CONSTRAINT ck_event_type
+                CHECK (event_type IN ('ACCEPTED', 'DECLINED'))
+
+  - changeSet:
+      id: 004-create-velocity-policy
+      author: mkuligowski
+      changes:
+        - createTable:
+            tableName: velocity_policy
+            columns:
+              - column:
+                  name: policy_id
+                  type: UUID
+                  constraints: { nullable: false, primaryKey: true, primaryKeyName: pk_velocity_policy }
+              - column:
+                  name: policy_type
+                  type: VARCHAR(32)
+                  constraints: { nullable: false }
+              - column:
+                  name: time_window
+                  type: VARCHAR(8)
+                  constraints: { nullable: false }
+              - column:
+                  name: threshold_amount
+                  type: NUMERIC(19,4)
+              - column:
+                  name: threshold_count
+                  type: INTEGER
+              - column:
+                  name: decline_reason
+                  type: VARCHAR(32)
+                  constraints: { nullable: false }
+              - column:
+                  name: created_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints: { nullable: false }
+        - addUniqueConstraint:
+            tableName: velocity_policy
+            columnNames: policy_type, time_window, decline_reason
+            constraintName: uq_velocity_policy_type_window_reason
+        - sql:
+            splitStatements: true
+            stripComments: true
+            sql: >
+              ALTER TABLE velocity_policy
+                ADD CONSTRAINT ck_velocity_policy_type
+                CHECK (policy_type IN ('AMOUNT_LIMIT', 'COUNT_LIMIT'));
+
+              ALTER TABLE velocity_policy
+                ADD CONSTRAINT ck_velocity_policy_window
+                CHECK (time_window IN ('DAY', 'WEEK'));
+
+              ALTER TABLE velocity_policy
+                ADD CONSTRAINT ck_velocity_policy_threshold_for_type
+                CHECK (
+                  (policy_type = 'AMOUNT_LIMIT' AND threshold_amount IS NOT NULL AND threshold_count  IS NULL)
+                  OR
+                  (policy_type = 'COUNT_LIMIT'  AND threshold_count  IS NOT NULL AND threshold_amount IS NULL)
+                );
+
+
+  - changeSet:
+      id: 005-seed-default-velocity-policies
+      author: mkuligowski
+      changes:
+        - insert:
+            tableName: velocity_policy
+            columns:
+              - column: { name: policy_id,        value: '00000000-0000-0000-0000-000000000001' }
+              - column: { name: policy_type,      value: AMOUNT_LIMIT }
+              - column: { name: time_window,      value: DAY }
+              - column: { name: threshold_amount, valueNumeric: 5000.0000 }
+              - column: { name: decline_reason,   value: DAILY_AMOUNT }
+              - column: { name: created_at,       valueComputed: CURRENT_TIMESTAMP }
+        - insert:
+            tableName: velocity_policy
+            columns:
+              - column: { name: policy_id,        value: '00000000-0000-0000-0000-000000000002' }
+              - column: { name: policy_type,      value: AMOUNT_LIMIT }
+              - column: { name: time_window,      value: WEEK }
+              - column: { name: threshold_amount, valueNumeric: 20000.0000 }
+              - column: { name: decline_reason,   value: WEEKLY_AMOUNT }
+              - column: { name: created_at,       valueComputed: CURRENT_TIMESTAMP }
+        - insert:
+            tableName: velocity_policy
+            columns:
+              - column: { name: policy_id,        value: '00000000-0000-0000-0000-000000000003' }
+              - column: { name: policy_type,      value: COUNT_LIMIT }
+              - column: { name: time_window,      value: DAY }
+              - column: { name: threshold_count,  valueNumeric: 3 }
+              - column: { name: decline_reason,   value: DAILY_COUNT }
+              - column: { name: created_at,       valueComputed: CURRENT_TIMESTAMP }

@@ -6,8 +6,6 @@ spring:
     driver-class-name: org.h2.Driver
     username: sa
     password: ""
-  jooq:
-    sql-dialect: H2
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.yaml
   h2:

@@ -1,11 +1,9 @@
 import net.ltgt.gradle.errorprone.errorprone
-import org.jooq.meta.jaxb.Logging
 
 plugins {
     java
     id("org.springframework.boot") version "4.0.6"
     id("io.spring.dependency-management") version "1.1.7"
-    id("nu.studer.jooq") version "10.0"
     id("io.freefair.lombok") version "9.0.0"
     id("net.ltgt.errorprone") version "4.3.0"
 }
@@ -68,7 +66,7 @@ dependencies {
     // --- core ---
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-validation")
-    implementation("org.springframework.boot:spring-boot-starter-jooq")
+    implementation("org.springframework.boot:spring-boot-starter-jdbc")
     implementation("org.liquibase:liquibase-core")
 
     // --- JSpecify for @NullMarked / @Nullable ---
@@ -80,11 +78,6 @@ dependencies {
 
     // --- runtime DB ---
     runtimeOnly("com.h2database:h2")
-
-    // --- jOOQ codegen (used by the plugin task in Step 3) ---
-    jooqGenerator("com.h2database:h2")
-    jooqGenerator("org.jooq:jooq-meta-extensions-liquibase:3.20.5")
-    jooqGenerator("org.liquibase:liquibase-core")
 
     // --- ErrorProne / NullAway ---
     errorprone("com.google.errorprone:error_prone_core:2.40.0")
@@ -144,7 +137,7 @@ tasks.withType<JavaCompile>().configureEach {
         option("NullAway:JSpecifyMode", "true")
     }
 }
-// Don't enforce NullAway on generated sources or test code.
+// Don't enforce NullAway on test or arch sources.
 tasks.named<JavaCompile>("compileTestJava") {
     options.errorprone.isEnabled = false
 }
@@ -154,34 +147,3 @@ tasks.named<JavaCompile>("compileIntegrationJava") {
 tasks.named<JavaCompile>("compileArchJava") {
     options.errorprone.isEnabled = false
 }
-
-// ---------------------------------------------------------------------------
-// jOOQ codegen — wired in Step 3 once Liquibase changesets exist
-// ---------------------------------------------------------------------------
-jooq {
-    version.set("3.20.5")
-    configurations {
-        create("main") {
-            generateSchemaSourceOnCompilation.set(false) // wired in Step 3
-            jooqConfiguration.apply {
-                logging = Logging.WARN
-                generator.apply {
-                    name = "org.jooq.codegen.JavaGenerator"
-                    database.apply {
-                        // Step 3: switch to LiquibaseDatabase so the schema
-                        // is derived from src/main/resources/db/changelog/...
-                        name = "org.jooq.meta.h2.H2Database"
-                        inputSchema = "PUBLIC"
-                    }
-                    target.apply {
-                        packageName = "com.mkuligowski.velocity.loads.adapters.db.jooq"
-                        directory = "build/generated/jooq"
-                    }
-                    strategy.name = "org.jooq.codegen.DefaultGeneratorStrategy"
-                }
-            }
-        }
-    }
-}
-// Don't run codegen on `build` until Step 3 wires real config.
-tasks.named("generateJooq") { enabled = false }
