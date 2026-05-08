@@ -1,0 +1,207 @@
+import net.ltgt.gradle.errorprone.errorprone
+import org.jooq.meta.jaxb.Logging
+
+plugins {
+    java
+    id("org.springframework.boot") version "4.0.6"
+    id("io.spring.dependency-management") version "1.1.7"
+    id("org.openapi.generator") version "7.12.0"
+    id("nu.studer.jooq") version "10.0"
+    id("io.freefair.lombok") version "9.0.0"
+    id("net.ltgt.errorprone") version "4.3.0"
+}
+
+group = "com.mkuligowski"
+version = "0.0.1-SNAPSHOT"
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+// ---------------------------------------------------------------------------
+// Source sets — three test surfaces per BLUEPRINT.md §12 / DESIGN.md §15
+// ---------------------------------------------------------------------------
+sourceSets {
+    create("integration") {
+        java.srcDir("src/integration/java")
+        resources.srcDir("src/integration/resources")
+        compileClasspath += sourceSets["main"].output + sourceSets["test"].output
+        runtimeClasspath += output + compileClasspath
+    }
+    create("arch") {
+        java.srcDir("src/arch/java")
+        resources.srcDir("src/arch/resources")
+        compileClasspath += sourceSets["main"].output + sourceSets["test"].output
+        runtimeClasspath += output + compileClasspath
+    }
+}
+
+val integrationImplementation: Configuration by configurations.getting {
+    extendsFrom(configurations["testImplementation"])
+}
+val integrationRuntimeOnly: Configuration by configurations.getting {
+    extendsFrom(configurations["testRuntimeOnly"])
+}
+val integrationCompileOnly: Configuration by configurations.getting {
+    extendsFrom(configurations["testCompileOnly"])
+}
+val integrationAnnotationProcessor: Configuration by configurations.getting {
+    extendsFrom(configurations["testAnnotationProcessor"])
+}
+
+val archImplementation: Configuration by configurations.getting {
+    extendsFrom(configurations["testImplementation"])
+}
+val archRuntimeOnly: Configuration by configurations.getting {
+    extendsFrom(configurations["testRuntimeOnly"])
+}
+
+// ---------------------------------------------------------------------------
+// Dependencies
+// ---------------------------------------------------------------------------
+dependencies {
+    // --- core ---
+    implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("org.springframework.boot:spring-boot-starter-validation")
+    implementation("org.springframework.boot:spring-boot-starter-jooq")
+    implementation("org.liquibase:liquibase-core")
+
+    // --- JSpecify for @NullMarked / @Nullable ---
+    implementation("org.jspecify:jspecify:1.0.0")
+
+    // --- mapping ---
+    implementation("org.mapstruct:mapstruct:1.6.3")
+    annotationProcessor("org.mapstruct:mapstruct-processor:1.6.3")
+
+    // --- runtime DB ---
+    runtimeOnly("com.h2database:h2")
+
+    // --- jOOQ codegen (used by the plugin task in Step 3) ---
+    jooqGenerator("com.h2database:h2")
+    jooqGenerator("org.jooq:jooq-meta-extensions-liquibase:3.20.5")
+    jooqGenerator("org.liquibase:liquibase-core")
+
+    // --- ErrorProne / NullAway ---
+    errorprone("com.google.errorprone:error_prone_core:2.40.0")
+    errorprone("com.uber.nullaway:nullaway:0.12.7")
+
+    // --- unit tests ---
+    testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.assertj:assertj-core")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+
+    // --- arch tests ---
+    archImplementation("com.tngtech.archunit:archunit-junit5:1.4.0")
+
+    // --- integration tests ---
+    integrationImplementation("org.springframework.boot:spring-boot-starter-test")
+}
+
+// ---------------------------------------------------------------------------
+// Test tasks — keep `test` fast; integration & arch run on `check`
+// ---------------------------------------------------------------------------
+tasks.named<Test>("test") {
+    useJUnitPlatform()
+}
+
+val integrationTest = tasks.register<Test>("integrationTest") {
+    description = "Runs integration tests against full Spring context + H2."
+    group = "verification"
+    testClassesDirs = sourceSets["integration"].output.classesDirs
+    classpath = sourceSets["integration"].runtimeClasspath
+    useJUnitPlatform()
+    shouldRunAfter("test")
+}
+
+val archTest = tasks.register<Test>("archTest") {
+    description = "Runs ArchUnit architectural rule tests."
+    group = "verification"
+    testClassesDirs = sourceSets["arch"].output.classesDirs
+    classpath = sourceSets["arch"].runtimeClasspath
+    useJUnitPlatform()
+    shouldRunAfter("test")
+}
+
+tasks.named("check") {
+    dependsOn(integrationTest, archTest)
+}
+
+// ---------------------------------------------------------------------------
+// ErrorProne + NullAway — domain purity & null-safety enforcement
+// ---------------------------------------------------------------------------
+tasks.withType<JavaCompile>().configureEach {
+    options.errorprone {
+        // NullAway only runs against our packages; turning off the rest of
+        // ErrorProne's checks keeps signal high during early scaffolding.
+        disableAllChecks = true
+        check("NullAway", net.ltgt.gradle.errorprone.CheckSeverity.ERROR)
+        option("NullAway:AnnotatedPackages", "com.mkuligowski.velocity")
+        option("NullAway:JSpecifyMode", "true")
+    }
+}
+// Don't enforce NullAway on generated sources or test code.
+tasks.named<JavaCompile>("compileTestJava") {
+    options.errorprone.isEnabled = false
+}
+tasks.named<JavaCompile>("compileIntegrationJava") {
+    options.errorprone.isEnabled = false
+}
+tasks.named<JavaCompile>("compileArchJava") {
+    options.errorprone.isEnabled = false
+}
+
+// ---------------------------------------------------------------------------
+// OpenAPI generator — wired in Step 2 when openapi.yaml lands
+// ---------------------------------------------------------------------------
+// openApiGenerate {
+//     generatorName.set("spring")
+//     inputSpec.set("$rootDir/src/main/resources/api/openapi.yaml")
+//     outputDir.set(layout.buildDirectory.dir("generated/openapi").get().asFile.path)
+//     apiPackage.set("com.mkuligowski.velocity.loads.adapters.rest.api")
+//     modelPackage.set("com.mkuligowski.velocity.loads.adapters.rest.dto")
+//     configOptions.set(mapOf(
+//         "useSpringBoot3"    to "true",
+//         "interfaceOnly"     to "true",
+//         "useTags"           to "true",
+//         "skipDefaultInterface" to "true",
+//     ))
+// }
+// sourceSets["main"].java.srcDir(layout.buildDirectory.dir("generated/openapi/src/main/java"))
+// tasks.named("compileJava") { dependsOn("openApiGenerate") }
+
+// ---------------------------------------------------------------------------
+// jOOQ codegen — wired in Step 3 once Liquibase changesets exist
+// ---------------------------------------------------------------------------
+jooq {
+    version.set("3.20.5")
+    configurations {
+        create("main") {
+            generateSchemaSourceOnCompilation.set(false) // wired in Step 3
+            jooqConfiguration.apply {
+                logging = Logging.WARN
+                generator.apply {
+                    name = "org.jooq.codegen.JavaGenerator"
+                    database.apply {
+                        // Step 3: switch to LiquibaseDatabase so the schema
+                        // is derived from src/main/resources/db/changelog/...
+                        name = "org.jooq.meta.h2.H2Database"
+                        inputSchema = "PUBLIC"
+                    }
+                    target.apply {
+                        packageName = "com.mkuligowski.velocity.loads.adapters.db.jooq"
+                        directory = "build/generated/jooq"
+                    }
+                    strategy.name = "org.jooq.codegen.DefaultGeneratorStrategy"
+                }
+            }
+        }
+    }
+}
+// Don't run codegen on `build` until Step 3 wires real config.
+tasks.named("generateJooq") { enabled = false }
