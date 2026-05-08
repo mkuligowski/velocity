@@ -5,7 +5,6 @@ plugins {
     java
     id("org.springframework.boot") version "4.0.6"
     id("io.spring.dependency-management") version "1.1.7"
-    id("org.openapi.generator") version "7.12.0"
     id("nu.studer.jooq") version "10.0"
     id("io.freefair.lombok") version "9.0.0"
     id("net.ltgt.errorprone") version "4.3.0"
@@ -155,25 +154,6 @@ tasks.named<JavaCompile>("compileIntegrationJava") {
 tasks.named<JavaCompile>("compileArchJava") {
     options.errorprone.isEnabled = false
 }
-
-// ---------------------------------------------------------------------------
-// OpenAPI generator — wired in Step 2 when openapi.yaml lands
-// ---------------------------------------------------------------------------
-// openApiGenerate {
-//     generatorName.set("spring")
-//     inputSpec.set("$rootDir/src/main/resources/api/openapi.yaml")
-//     outputDir.set(layout.buildDirectory.dir("generated/openapi").get().asFile.path)
-//     apiPackage.set("com.mkuligowski.velocity.loads.adapters.rest.api")
-//     modelPackage.set("com.mkuligowski.velocity.loads.adapters.rest.dto")
-//     configOptions.set(mapOf(
-//         "useSpringBoot3"    to "true",
-//         "interfaceOnly"     to "true",
-//         "useTags"           to "true",
-//         "skipDefaultInterface" to "true",
-//     ))
-// }
-// sourceSets["main"].java.srcDir(layout.buildDirectory.dir("generated/openapi/src/main/java"))
-// tasks.named("compileJava") { dependsOn("openApiGenerate") }
 
 // ---------------------------------------------------------------------------
 // jOOQ codegen — wired in Step 3 once Liquibase changesets exist
