@@ -80,16 +80,14 @@ public class LoadAttemptEvaluationService {
 
         loadAttemptRepository.save(nextState);
 
-        if (log.isInfoEnabled()) {
-            log.info("Load attempt decided: customer={} load={} decision={} dailySum={} dailyCount={} weeklySum={}",
-                    cmd.customerId().value(),
-                    cmd.loadId().value(),
-                    decision instanceof Decision.Accepted ? "ACCEPTED"
-                            : "DECLINED:" + ((Decision.Declined) decision).reason(),
-                    usage.dailySum().value(),
-                    usage.dailyCount(),
-                    usage.weeklySum().value());
-        }
+        log.info("Load attempt decided: customer={} load={} decision={} dailySum={} dailyCount={} weeklySum={}",
+                cmd.customerId().value(),
+                cmd.loadId().value(),
+                decision instanceof Decision.Accepted ? "ACCEPTED"
+                        : "DECLINED:" + ((Decision.Declined) decision).reason(),
+                usage.dailySum().value(),
+                usage.dailyCount(),
+                usage.weeklySum().value());
 
         return Optional.of(nextState);
     }
