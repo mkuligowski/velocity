@@ -25,16 +25,15 @@ repositories {
 // Source sets — three test surfaces per BLUEPRINT.md §12 / DESIGN.md §15
 // ---------------------------------------------------------------------------
 sourceSets {
+    // Default conventions add src/integration/{java,resources} and src/arch/{java,resources}.
     create("integration") {
-        java.srcDir("src/integration/java")
-        resources.srcDir("src/integration/resources")
         compileClasspath += sourceSets["main"].output + sourceSets["test"].output
         runtimeClasspath += output + compileClasspath
     }
     create("arch") {
-        java.srcDir("src/arch/java")
-        resources.srcDir("src/arch/resources")
-        compileClasspath += sourceSets["main"].output + sourceSets["test"].output
+        // Only main classes are analyzed by ArchUnit — keep test/integration off
+        // the classpath so rules don't trip on test scaffolding.
+        compileClasspath += sourceSets["main"].output
         runtimeClasspath += output + compileClasspath
     }
 }
@@ -90,10 +89,17 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
     // --- arch tests ---
-    archImplementation("com.tngtech.archunit:archunit-junit5:1.4.0")
+    // Plain ArchUnit (no -junit5) — JDK 25 AppClassLoader doesn't expose classpath URLs
+    // for ArchUnit's @AnalyzeClasses to enumerate, so we import classes by explicit path
+    // and use standard JUnit @Test methods.
+    archImplementation("com.tngtech.archunit:archunit:1.4.1")
 
     // --- integration tests ---
     integrationImplementation("org.springframework.boot:spring-boot-starter-test")
+    // SB 4 moved TestRestTemplate / WebTestClient out of spring-boot-test core
+    integrationImplementation("org.springframework.boot:spring-boot-resttestclient")
+    // …which transitively needs spring-boot-restclient (RestTemplateBuilder)
+    integrationImplementation("org.springframework.boot:spring-boot-restclient")
 }
 
 // ---------------------------------------------------------------------------
@@ -116,7 +122,9 @@ val archTest = tasks.register<Test>("archTest") {
     description = "Runs ArchUnit architectural rule tests."
     group = "verification"
     testClassesDirs = sourceSets["arch"].output.classesDirs
-    classpath = sourceSets["arch"].runtimeClasspath
+    // Explicitly include main classes — sourceSets["arch"].runtimeClasspath drops them
+    // in Gradle 9 even though they're on compileClasspath.
+    classpath = sourceSets["arch"].runtimeClasspath + sourceSets["main"].output
     useJUnitPlatform()
     shouldRunAfter("test")
 }

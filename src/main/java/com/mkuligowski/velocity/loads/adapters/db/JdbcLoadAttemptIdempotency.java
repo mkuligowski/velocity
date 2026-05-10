@@ -10,9 +10,12 @@ import java.util.Objects;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
-import org.springframework.stereotype.Repository;
+import org.springframework.stereotype.Component;
 
-@Repository
+// Not @Repository: this class isn't a repository in the DDD sense, it's a uniqueness gate.
+// JdbcTemplate already translates SQL exceptions, so we don't need @Repository's
+// PersistenceExceptionTranslationPostProcessor wrapping.
+@Component
 class JdbcLoadAttemptIdempotency implements LoadAttemptIdempotency {
 
     private final NamedParameterJdbcTemplate jdbc;

@@ -12,9 +12,10 @@ import java.time.ZoneOffset;
 import java.util.Objects;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
-import org.springframework.stereotype.Repository;
+import org.springframework.stereotype.Component;
 
-@Repository
+// Not @Repository: this is a read-only aggregate query, not an aggregate root repository.
+@Component
 class JdbcCustomerLoadUsageQuery implements CustomerLoadUsageQuery {
 
     private final NamedParameterJdbcTemplate jdbc;
