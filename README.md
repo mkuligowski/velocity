@@ -124,9 +124,17 @@ Needs Java 25.
 ```bash
 ./gradlew bootRun           # starts on :8080
 ./gradlew check             # runs unit + integration + arch tests
+./simulate.sh               # boots the app, replays input.txt, diffs against output.txt
 ```
 
-Quick smoke test:
+`./simulate.sh` is the end-to-end check that the assignment expects: it starts the
+service, fires every line of `input.txt` through the HTTP endpoint, collects each
+response, and confirms the captured output matches `output.txt` byte-for-byte (modulo
+line endings — `output.txt` is CRLF). Captured output goes to
+`build/replay/actual-output.txt` so it can be inspected after the run. Exits 0 on a
+match, 1 with the first diff hunks otherwise.
+
+Quick smoke test against an already-running app:
 
 ```bash
 curl -X POST localhost:8080/api/v1/loads \
