@@ -6,8 +6,8 @@ import java.util.List;
 public interface VelocityPolicyRepository {
 
     /**
-     * Returns all currently-active velocity policies. Policies are global (no per-customer
-     * overrides yet — see DESIGN.md §18). No caching — runs on every load attempt.
+     * Returns all currently-active velocity policies. Policies are global today — no
+     * per-customer overrides. No caching — runs on every load attempt.
      */
     List<VelocityPolicy> findAll();
 }

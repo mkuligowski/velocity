@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 /**
- * Cross-cutting hygiene rules per BLUEPRINT.md §10. Adapted to this service:
+ * Cross-cutting hygiene rules.
  * <ul>
  *   <li>No field injection — constructor injection only.</li>
  *   <li>No static {@code Instant.now()} / {@code OffsetDateTime.now()} etc. — inject {@code Clock}.</li>

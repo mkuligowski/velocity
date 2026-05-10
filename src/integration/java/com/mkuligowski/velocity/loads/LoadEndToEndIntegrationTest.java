@@ -40,6 +40,7 @@ class LoadEndToEndIntegrationTest {
         jdbc.execute("DELETE FROM load_attempt_event");
         jdbc.execute("DELETE FROM load_attempt_snapshot");
         jdbc.execute("DELETE FROM load_attempt_idempotency");
+        jdbc.execute("DELETE FROM customer_lock");
     }
 
     @Test

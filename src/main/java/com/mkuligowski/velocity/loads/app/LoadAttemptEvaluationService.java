@@ -1,6 +1,7 @@
 package com.mkuligowski.velocity.loads.app;
 
 import com.mkuligowski.velocity.loads.app.ports.CustomerLoadUsageQuery;
+import com.mkuligowski.velocity.loads.app.ports.CustomerLock;
 import com.mkuligowski.velocity.loads.app.ports.LoadAttemptIdempotency;
 import com.mkuligowski.velocity.loads.app.ports.LoadAttemptRepository;
 import com.mkuligowski.velocity.loads.app.ports.VelocityPolicyRepository;
@@ -28,6 +29,7 @@ public class LoadAttemptEvaluationService {
 
     private final LoadAttemptRepository loadAttemptRepository;
     private final LoadAttemptIdempotency idempotency;
+    private final CustomerLock customerLock;
     private final VelocityPolicyRepository policyRepository;
     private final CustomerLoadUsageQuery usageQuery;
     private final Clock clock;
@@ -35,11 +37,13 @@ public class LoadAttemptEvaluationService {
     public LoadAttemptEvaluationService(
             LoadAttemptRepository loadAttemptRepository,
             LoadAttemptIdempotency idempotency,
+            CustomerLock customerLock,
             VelocityPolicyRepository policyRepository,
             CustomerLoadUsageQuery usageQuery,
             Clock clock) {
         this.loadAttemptRepository = Objects.requireNonNull(loadAttemptRepository);
         this.idempotency = Objects.requireNonNull(idempotency);
+        this.customerLock = Objects.requireNonNull(customerLock);
         this.policyRepository = Objects.requireNonNull(policyRepository);
         this.usageQuery = Objects.requireNonNull(usageQuery);
         this.clock = Objects.requireNonNull(clock);
@@ -55,6 +59,11 @@ public class LoadAttemptEvaluationService {
                     cmd.customerId().value(), cmd.loadId().value());
             return Optional.empty();
         }
+
+        // Serialize concurrent same-customer attempts across pods: hold an exclusive row
+        // lock until this transaction commits. Two attempts for the same customer cannot
+        // both pass the daily-total read because the second waits here.
+        customerLock.acquireFor(cmd.customerId());
 
         LoadAttemptInitiated initiated = LoadAttempt.initiate(
                 cmd.loadId(), cmd.customerId(), cmd.amount(), cmd.loadTime());

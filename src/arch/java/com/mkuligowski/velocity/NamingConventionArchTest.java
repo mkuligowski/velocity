@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 
 /**
- * Annotation ↔ name suffix consistency per BLUEPRINT.md §10.
+ * Annotation ↔ name suffix consistency.
  *
  * <p>Note: classes that are conceptually adapters but not "repositories" in the DDD sense
  * (idempotency gate, read-only query) use {@code @Component} instead of {@code @Repository}

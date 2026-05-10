@@ -197,3 +197,27 @@ databaseChangeLog:
               - column: { name: threshold_count,  valueNumeric: 3 }
               - column: { name: decline_reason,   value: DAILY_COUNT }
               - column: { name: created_at,       valueComputed: CURRENT_TIMESTAMP }
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # 006 — customer_lock
+  # Per-customer pessimistic lock row. The evaluation transaction takes a
+  # SELECT ... FOR UPDATE on the customer_id row so concurrent same-customer
+  # requests across any number of pods serialize at the DB. Without this, two
+  # different load IDs for the same customer could race past the limit check
+  # and both be accepted over-limit.
+  # ─────────────────────────────────────────────────────────────────────────
+  - changeSet:
+      id: 006-create-customer-lock
+      author: mkuligowski
+      changes:
+        - createTable:
+            tableName: customer_lock
+            columns:
+              - column:
+                  name: customer_id
+                  type: VARCHAR(64)
+                  constraints: { nullable: false, primaryKey: true, primaryKeyName: pk_customer_lock }
+              - column:
+                  name: created_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints: { nullable: false }

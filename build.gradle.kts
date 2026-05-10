@@ -22,7 +22,7 @@ repositories {
 }
 
 // ---------------------------------------------------------------------------
-// Source sets — three test surfaces per BLUEPRINT.md §12 / DESIGN.md §15
+// Source sets — three test surfaces: unit, integration, architecture
 // ---------------------------------------------------------------------------
 sourceSets {
     // Default conventions add src/integration/{java,resources} and src/arch/{java,resources}.
